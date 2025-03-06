@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Deployment Result</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body>
+<div class="panelContainer mt-5">
+    <h1>Deployment Result</h1>
+    <div th:if="${message}" class="alert alert-success">
+        <p th:text="${message}">Success Message</p>
+    </div>
+    <div th:if="${panelContainer}" class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title" th:text="${panelContainer.name}">Container Name</h5>
+            <p class="card-text"><strong>ID:</strong> <span th:text="${panelContainer.id}">Container ID</span></p>
+            <p class="card-text"><strong>Domain:</strong> <span th:text="${panelContainer.domain}">Domain</span></p>
+            <p class="card-text"><strong>Access:</strong> <a th:href="@{https://__${panelContainer.domain}__}" target="_blank">https://<span th:text="${panelContainer.domain}"></span></a></p>
+        </div>
+    </div>
+    <a href="/" class="btn btn-primary">Back to Home</a>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

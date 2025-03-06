@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title><!DOCTYPE html>
+        <html xmlns:th="http://www.thymeleaf.org">
+        <head>
+        <title>Container Details</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body>
+<div class="panelContainer mt-5">
+    <h1>Container Details</h1>
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title" th:text="${panelContainer.name}">Container Name</h5>
+            <p class="card-text"><strong>ID:</strong> <span th:text="${panelContainer.id}">Container ID</span></p>
+            <p class="card-text"><strong>Domain:</strong> <span th:text="${panelContainer.domain}">Domain</span></p>
+            <p class="card-text"><strong>Port:</strong> <span th:text="${panelContainer.internalPort}">Port</span></p>
+            <p class="card-text"><strong>Status:</strong> <span th:text="${panelContainer.status}">Status</span></p>
+        </div>
+    </div>
+
+    <h2>Build Logs</h2>
+    <div id="logs" class="card p-3 mb-3" style="height: 400px; overflow-y: auto; white-space: pre-wrap; font-family: monospace;">
+        <span th:each="log : ${panelContainer.logs}" th:text="${log}"></span>
+    </div>
+
+    <h2>Actions</h2>
+    <div>
+        <form th:action="@{/panelContainer/{id}/stop(id=${panelContainer.id})}" method="post" style="display:inline;">
+            <button type="submit" class="btn btn-warning btn-sm">Stop</button>
+        </form>
+        <form th:action="@{/panelContainer/{id}/start(id=${panelContainer.id})}" method="post" style="display:inline;">
+            <button type="submit" class="btn btn-success btn-sm">Start</button>
+        </form>
+        <form th:action="@{/panelContainer/{id}/restart(id=${panelContainer.id})}" method="post" style="display:inline;">
+            <button type="submit" class="btn btn-primary btn-sm">Restart</button>
+        </form>
+        <form th:action="@{/panelContainer/{id}/remove(id=${panelContainer.id})}" method="post" style="display:inline;"
+              onsubmit="return confirm('Are you sure you want to remove this panelContainer?');">
+            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+        </form>
+        <a href="/logs?containerId=<th:text th:replace="${panelContainer.id}" />" class="btn btn-info btn-sm" target="_blank">Live Logs</a>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // WebSocket for real-time logs
+    const containerId = "<th:text th:replace="${panelContainer.id}" />";
+    const ws = new WebSocket(`ws://localhost:8080/websocket?containerId=${containerId}`);
+
+    ws.onmessage = function(event) {
+        const logsDiv = document.getElementById('logs');
+        logsDiv.innerHTML += event.data + '\n';
+        logsDiv.scrollTop = logsDiv.scrollHeight; // Auto-scroll to the bottom
+    };
+
+    ws.onclose = function() {
+        console.log('WebSocket connection closed');
+    };
+
+    ws.onerror = function(error) {
+        console.error('WebSocket error:', error);
+    };
+</script>
+</body>
+</html></title>
+</head>
+<body>
+
+</body>
+</html>
