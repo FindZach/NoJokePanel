@@ -48,11 +48,11 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# Rerun on the server via SSH with version
+# Rerun on the server via SSH with version (using correct master branch)
 Write-Host "Rerunning NoJokePanel on the server with version $Version..."
-ssh administrator@nojoke-panel "export NOJOKEPANEL_VERSION=$Version && curl -sSL https://raw.githubusercontent.com/findzach/nojokepanel/main/scripts/install-nojokepanel.sh | bash"
+ssh administrator@93.127.135.101 "export NOJOKEPANEL_VERSION=$Version && curl -sSL https://raw.githubusercontent.com/FindZach/NoJokePanel/refs/heads/master/scripts/install-nojokepanel.sh | bash"
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Server rerun failed! Check SSH access or script execution." -ForegroundColor Red
+    Write-Host "Server rerun failed! Check SSH access, script URL, or GitHub access. Error: $LASTEXITCODE" -ForegroundColor Red
     exit $LASTEXITCODE
 }
 
