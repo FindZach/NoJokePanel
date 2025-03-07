@@ -216,6 +216,7 @@ public class ContainerService implements ContainerServiceInterface {
                 .addArgument(".")
                 .addArgument("--builder")
                 .addArgument("paketobuildpacks/builder-jammy-base")
+                .addArgument("--env")
                 .addArgument("BP_JVM_VERSION=17"); // Specify JDK 17
         DefaultExecutor executor = new DefaultExecutor();
         executor.setWorkingDirectory(new File(cloneDir));
