@@ -84,17 +84,6 @@
       justify-content: space-between;
       margin-top: 2rem;
     }
-    #buildLogs {
-      height: 200px;
-      overflow-y: auto;
-      background-color: #f9fafb;
-      border: 1px solid #e0e7ff;
-      border-radius: 8px;
-      padding: 1rem;
-      margin-top: 1.5rem;
-      font-family: 'Courier New', Courier, monospace;
-      color: #1e3a8a;
-    }
   </style>
 </head>
 <body>
@@ -126,11 +115,15 @@
       <a href="/" class="btn btn-secondary">Cancel</a>
     </div>
   </form>
-  <div id="buildLogs"></div>
+
+  <!-- Include the terminal fragment -->
+  <div th:replace="~{fragments/terminal-view :: terminal-view}"></div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script th:replace="~{fragments/terminal-view :: terminal-script}"></script>
 <script>
-  console.log('Script loaded');
+  console.log('Deploy script loaded');
 
   document.getElementById('deployButton').addEventListener('click', function(event) {
     console.log('Deploy button clicked');
@@ -147,15 +140,18 @@
     const buildLogs = document.getElementById('buildLogs');
     buildLogs.innerHTML = '<div>Submitting deployment request...</div>';
 
-    console.log('Submitting form via fetch');
+    console.log('Submitting form via fetch to /deploy');
     fetch('/deploy', {
       method: 'POST',
       body: formData
     })
             .then(response => {
-              console.log('Fetch response status:', response.status);
+              console.log('Fetch response status:', response.status, response.statusText);
+              console.log('Fetch response headers:', [...response.headers.entries()]);
               if (!response.ok) {
-                throw new Error('Server error: ' + response.statusText + ' (' + response.status + ')');
+                return response.text().then(text => {
+                  throw new Error(`Server error: ${response.statusText} (${response.status}) - ${text}`);
+                });
               }
               return response.json();
             })
@@ -166,34 +162,7 @@
                 throw new Error('No containerId returned from server');
               }
               buildLogs.innerHTML += '<div>Starting deployment for container: ' + containerId + '</div>';
-
-              const wsUrl = 'wss://' + window.location.host + '/build-logs?containerId=' + encodeURIComponent(containerId);
-              console.log('Attempting WebSocket connection to:', wsUrl);
-              const ws = new WebSocket(wsUrl);
-
-              ws.onopen = function() {
-                console.log('WebSocket connection opened for container ' + containerId);
-                buildLogs.innerHTML += '<div>WebSocket connected, starting build...</div>';
-                ws.send('startBuild:' + containerId);
-              };
-
-              ws.onmessage = function(event) {
-                console.log('Received WebSocket message:', event.data);
-                const logMessage = document.createElement('div');
-                logMessage.textContent = event.data;
-                buildLogs.appendChild(logMessage);
-                buildLogs.scrollTop = buildLogs.scrollHeight;
-              };
-
-              ws.onerror = function(error) {
-                console.error('WebSocket error:', error);
-                buildLogs.innerHTML += '<div style="color: red;">WebSocket error occurred: ' + (error.message || 'Unknown error') + '</div>';
-              };
-
-              ws.onclose = function(event) {
-                console.log('WebSocket connection closed for container ' + containerId + ':', event.code, event.reason);
-                buildLogs.innerHTML += '<div>Build process ended. WebSocket closed: ' + (event.reason || 'No reason provided') + '</div>';
-              };
+              setupTerminal(containerId); // Call the fragment's setup function
             })
             .catch(error => {
               console.error('Deployment error:', error);

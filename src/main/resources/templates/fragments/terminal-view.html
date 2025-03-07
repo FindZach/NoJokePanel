@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    .terminal-container {
+      margin-top: 1.5rem;
+      position: relative;
+      background-color: #222; /* Darker background for the container */
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      overflow: hidden; /* Ensure rounded corners clip content */
+    }
+    .terminal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: #333; /* Header bar color */
+      padding: 0.5rem 1rem;
+      border-bottom: 1px solid #444;
+    }
+    .terminal-title {
+      color: #ddd;
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+    .terminal-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .extend-btn, .clear-btn {
+      background-color: #555;
+      border: none;
+      border-radius: 5px;
+      padding: 0.3rem 0.8rem;
+      color: white;
+      font-size: 0.85rem;
+      transition: background-color 0.3s ease;
+    }
+    .extend-btn:hover, .clear-btn:hover {
+      background-color: #777;
+    }
+    .extend-btn {
+      background-color: #2563eb;
+    }
+    .extend-btn:hover {
+      background-color: #1e40af;
+    }
+    .terminal {
+      height: 250px; /* Adjusted height */
+      overflow-y: auto;
+      background-color: #1e1e1e; /* Dark terminal background */
+      color: #e0e0e0; /* Light gray text for better readability */
+      border: none; /* Remove border since container has one */
+      border-radius: 0 0 8px 8px; /* Round bottom corners */
+      padding: 1rem;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+    }
+    .terminal::-webkit-scrollbar {
+      width: 8px;
+    }
+    .terminal::-webkit-scrollbar-track {
+      background: #2a2a2a;
+      border-radius: 8px;
+    }
+    .terminal::-webkit-scrollbar-thumb {
+      background: #555;
+      border-radius: 8px;
+    }
+    .terminal::-webkit-scrollbar-thumb:hover {
+      background: #777;
+    }
+    .modal-terminal {
+      height: 70vh; /* Full height in modal */
+      background-color: #1e1e1e;
+      color: #e0e0e0; /* Light gray text */
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      overflow-y: auto; /* Enable scrolling */
+      box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+    }
+    .modal-terminal::-webkit-scrollbar {
+      width: 8px;
+    }
+    .modal-terminal::-webkit-scrollbar-track {
+      background: #2a2a2a;
+      border-radius: 8px;
+    }
+    .modal-terminal::-webkit-scrollbar-thumb {
+      background: #555;
+      border-radius: 8px;
+    }
+    .modal-terminal::-webkit-scrollbar-thumb:hover {
+      background: #777;
+    }
+    .modal-content {
+      background-color: #222;
+      color: #e0e0e0;
+      border: none;
+    }
+    .modal-header, .modal-footer {
+      border-color: #444;
+    }
+    .modal-title {
+      color: #ddd;
+    }
+    .btn-close {
+      filter: invert(1); /* Make close button visible on dark background */
+    }
+  </style>
+</head>
+<body>
+<th:block th:fragment="terminal-view">
+  <div class="terminal-container">
+    <div class="terminal-header">
+      <span class="terminal-title">Build Logs</span>
+      <div class="terminal-actions">
+        <button class="clear-btn" onclick="clearTerminalLogs()">Clear</button>
+        <button class="extend-btn" data-bs-toggle="modal" data-bs-target="#terminalModal">Extend</button>
+      </div>
+    </div>
+    <div id="buildLogs" class="terminal"></div>
+  </div>
+
+  <!-- Modal for full-screen terminal -->
+  <div class="modal fade" id="terminalModal" tabindex="-1" aria-labelledby="terminalModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="terminalModalLabel">Build Logs</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="modalBuildLogs" class="modal-terminal"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</th:block>
+
+<script th:fragment="terminal-script">
+  console.log('Terminal script loaded');
+
+  function setupTerminal(containerId) {
+    const buildLogs = document.getElementById('buildLogs');
+    const modalBuildLogs = document.getElementById('modalBuildLogs');
+
+    const wsUrl = 'wss://' + window.location.host + '/build-logs?containerId=' + encodeURIComponent(containerId);
+    console.log('Attempting WebSocket connection to:', wsUrl);
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = function() {
+      console.log('WebSocket connection opened for container ' + containerId);
+      buildLogs.innerHTML += '<div>WebSocket connected, starting build...</div>';
+      modalBuildLogs.innerHTML += '<div>WebSocket connected, starting build...</div>';
+      ws.send('startBuild:' + containerId);
+    };
+
+    ws.onmessage = function(event) {
+      console.log('Received WebSocket message:', event.data);
+      const logMessage = document.createElement('div');
+      logMessage.textContent = event.data;
+      buildLogs.appendChild(logMessage);
+      modalBuildLogs.appendChild(logMessage.cloneNode(true));
+      buildLogs.scrollTop = buildLogs.scrollHeight;
+      modalBuildLogs.scrollTop = modalBuildLogs.scrollHeight;
+    };
+
+    ws.onerror = function(error) {
+      console.error('WebSocket error:', error);
+      const errorMessage = document.createElement('div');
+      errorMessage.style.color = 'red';
+      errorMessage.textContent = 'WebSocket error occurred: ' + (error.message || 'Unknown error');
+      buildLogs.appendChild(errorMessage);
+      modalBuildLogs.appendChild(errorMessage.cloneNode(true));
+    };
+
+    ws.onclose = function(event) {
+      console.log('WebSocket connection closed for container ' + containerId + ':', event.code, event.reason);
+      const closeMessage = document.createElement('div');
+      closeMessage.textContent = 'Build process ended. WebSocket closed: ' + (event.reason || 'No reason provided');
+      buildLogs.appendChild(closeMessage);
+      modalBuildLogs.appendChild(closeMessage.cloneNode(true));
+    };
+  }
+
+  function clearTerminalLogs() {
+    const buildLogs = document.getElementById('buildLogs');
+    const modalBuildLogs = document.getElementById('modalBuildLogs');
+    buildLogs.innerHTML = '';
+    modalBuildLogs.innerHTML = '';
+  }
+</script>
+</body>
+</html>
