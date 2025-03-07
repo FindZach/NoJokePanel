@@ -4,6 +4,14 @@ param (
 
 Write-Host "Preparing NoJokePanel for Linux deployment with version $Version..." -ForegroundColor Green
 
+# Ensure the correct Docker context
+Write-Host "Setting Docker context to desktop-linux..."
+docker context use desktop-linux
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Failed to set Docker context to desktop-linux!" -ForegroundColor Redocked
+    exit $LASTEXITCODE
+}
+
 # Build the Spring Boot app with clean
 Write-Host "Building Spring Boot application with clean..."
 mvn clean package

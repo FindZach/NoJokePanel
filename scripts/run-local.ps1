@@ -6,6 +6,14 @@ docker stop spring-app traefik 2>$null
 docker rm spring-app traefik 2>$null
 docker network rm traefik-net 2>$null
 
+# Ensure Docker context
+Write-Host "Setting Docker context to desktop-linux..."
+docker context use desktop-linux
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Failed to set Docker context to desktop-linux!" -ForegroundColor Red
+    exit $LASTEXITCODE
+}
+
 # Build the Spring Boot app with clean
 Write-Host "Building Spring Boot application with clean..."
 mvn clean package
