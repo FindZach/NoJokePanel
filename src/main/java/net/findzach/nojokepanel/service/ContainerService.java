@@ -25,15 +25,16 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @Slf4j
 public class ContainerService implements ContainerServiceInterface {
 
     private final DockerClient dockerClient;
-    private final Map<String, PanelContainer> containers = new HashMap<>();
+    private final Map<String, PanelContainer> containers = new ConcurrentHashMap<>();
+    private final Map<String, GitHubDeploy> deployments = new ConcurrentHashMap<>(); // Store GitHubDeploy objects
     private final BuildLogWebSocketHandler webSocketHandler;
     private String traefikNetwork = "traefik-net";
 
@@ -62,39 +63,66 @@ public class ContainerService implements ContainerServiceInterface {
     }
 
     @Override
-    public PanelContainer deployGitHubRepo(GitHubDeploy githubDeploy) throws Exception {
+    public PanelContainer initiateDeployment(GitHubDeploy githubDeploy) {
+        log.info("Initiating deployment for repoUrl: {}, domain: {}, port: {}",
+                githubDeploy.getRepoUrl(), githubDeploy.getDomain(), githubDeploy.getInternalPort());
         String tempDir = "repo-" + System.currentTimeMillis();
         new File(tempDir).mkdir();
 
-        cloneRepoWithToken(githubDeploy.getRepoUrl(), githubDeploy.getGithubToken(), tempDir);
-        Path packPath = downloadAndInstallPack(tempDir);
         String imageName = "app-" + System.currentTimeMillis() + ":latest";
         String containerId = imageName.replace(":", "-");
 
-        PanelContainer panelContainer = new PanelContainer(containerId, "github-" + System.currentTimeMillis(), imageName, githubDeploy.getDomain(), githubDeploy.getInternalPort());
+        PanelContainer panelContainer = new PanelContainer(containerId, "github-" + System.currentTimeMillis(),
+                imageName, githubDeploy.getDomain(), githubDeploy.getInternalPort());
         containers.put(containerId, panelContainer);
-
-        buildWithPaketo(packPath.toString(), tempDir, imageName, panelContainer);
-
-        CreateContainerResponse dockerContainer = dockerClient.createContainerCmd(imageName)
-                .withName(panelContainer.getName())
-                .withHostConfig(HostConfig.newHostConfig().withNetworkMode(traefikNetwork))
-                .withExposedPorts(ExposedPort.tcp(githubDeploy.getInternalPort()))
-                .withLabels(Map.of(
-                        "traefik.enable", "true",
-                        "traefik.http.routers." + panelContainer.getName() + ".rule", "Host(`" + githubDeploy.getDomain() + "`)",
-                        "traefik.http.routers." + panelContainer.getName() + ".entrypoints", "websecure",
-                        "traefik.http.routers." + panelContainer.getName() + ".tls", "true",
-                        "traefik.http.routers." + panelContainer.getName() + ".tls.certresolver", "myresolver",
-                        "traefik.http.services." + panelContainer.getName() + ".loadbalancer.server.port", String.valueOf(githubDeploy.getInternalPort())
-                ))
-                .exec();
-        dockerClient.startContainerCmd(dockerContainer.getId()).exec();
-        panelContainer.setId(dockerContainer.getId());
-        panelContainer.setStatus("RUNNING");
-
-        deleteDirectory(new File(tempDir));
+        deployments.put(containerId, githubDeploy); // Store the original GitHubDeploy object
         return panelContainer;
+    }
+
+    public void completeDeployment(PanelContainer panelContainer) throws Exception {
+        String containerId = panelContainer.getId();
+        GitHubDeploy githubDeploy = deployments.get(containerId); // Retrieve the original deploy data
+        if (githubDeploy == null) {
+            throw new Exception("No deployment data found for containerId: " + containerId);
+        }
+
+        String tempDir = "repo-" + containerId.replace("-", "");
+        new File(tempDir).mkdir();
+
+        try {
+            cloneRepoWithToken(githubDeploy.getRepoUrl(), githubDeploy.getGithubToken(), tempDir);
+            Path packPath = downloadAndInstallPack(tempDir);
+            buildWithPaketo(packPath.toString(), tempDir, panelContainer.getImageName(), panelContainer);
+
+            CreateContainerResponse dockerContainer = dockerClient.createContainerCmd(panelContainer.getImageName())
+                    .withName(panelContainer.getName())
+                    .withHostConfig(HostConfig.newHostConfig().withNetworkMode(traefikNetwork))
+                    .withExposedPorts(ExposedPort.tcp(githubDeploy.getInternalPort()))
+                    .withLabels(Map.of(
+                            "traefik.enable", "true",
+                            "traefik.http.routers." + panelContainer.getName() + ".rule", "Host(`" + githubDeploy.getDomain() + "`)",
+                            "traefik.http.routers." + panelContainer.getName() + ".entrypoints", "websecure",
+                            "traefik.http.routers." + panelContainer.getName() + ".tls", "true",
+                            "traefik.http.routers." + panelContainer.getName() + ".tls.certresolver", "myresolver",
+                            "traefik.http.services." + panelContainer.getName() + ".loadbalancer.server.port", String.valueOf(githubDeploy.getInternalPort())
+                    ))
+                    .exec();
+            dockerClient.startContainerCmd(dockerContainer.getId()).exec();
+            panelContainer.setId(dockerContainer.getId());
+            panelContainer.setStatus("RUNNING");
+        } catch (Exception e) {
+            log.error("Deployment failed in completeDeployment for containerId {}: {}", panelContainer.getId(), e.getMessage(), e);
+            throw e;
+        } finally {
+            deleteDirectory(new File(tempDir));
+        }
+    }
+
+    @Override
+    @Deprecated // Use initiateDeployment and completeDeployment instead
+    public PanelContainer deployGitHubRepo(GitHubDeploy githubDeploy) throws Exception {
+        log.warn("Deprecated method deployGitHubRepo called. Use initiateDeployment and completeDeployment instead.");
+        return initiateDeployment(githubDeploy); // Placeholder to maintain compatibility
     }
 
     @Override
@@ -134,6 +162,12 @@ public class ContainerService implements ContainerServiceInterface {
 
     @Override
     public void streamBuildLogs(PanelContainer panelContainer) {
+        try {
+            log.info("Delaying build start for container {} to ensure WebSocket connection", panelContainer.getId());
+            Thread.sleep(5000); // Delay 5 seconds to allow WebSocket connection
+        } catch (InterruptedException e) {
+            log.error("Delay interrupted", e);
+        }
         new BuildExecutor(panelContainer, webSocketHandler).executeBuild();
     }
 
@@ -181,7 +215,8 @@ public class ContainerService implements ContainerServiceInterface {
                 .addArgument("--path")
                 .addArgument(".")
                 .addArgument("--builder")
-                .addArgument("paketobuildpacks/builder-jammy-base");
+                .addArgument("paketobuildpacks/builder-jammy-base")
+                .addArgument("BP_JVM_VERSION=17"); // Specify JDK 17
         DefaultExecutor executor = new DefaultExecutor();
         executor.setWorkingDirectory(new File(cloneDir));
         WebSocketStreamHandler streamHandler = new WebSocketStreamHandler(panelContainer, webSocketHandler); // Manual instantiation

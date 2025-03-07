@@ -6,6 +6,7 @@ import net.findzach.nojokepanel.service.ContainerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -13,10 +14,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @Controller
 @RequestMapping("/")
 @Slf4j
+@EnableAsync
 public class DockerController {
 
     private final ContainerService containerService;
@@ -41,18 +44,26 @@ public class DockerController {
     @PostMapping("/deploy")
     @ResponseBody
     public Map<String, String> deployGitHubRepo(@ModelAttribute GitHubDeploy githubDeploy) {
+        log.info("Deploy request received: repoUrl={}, domain={}, internalPort={}",
+                githubDeploy.getRepoUrl(), githubDeploy.getDomain(), githubDeploy.getInternalPort());
         try {
-            log.info("Received deploy request: repoUrl={}, domain={}, internalPort={}",
-                    githubDeploy.getRepoUrl(), githubDeploy.getDomain(), githubDeploy.getInternalPort());
-            PanelContainer panelContainer = containerService.deployGitHubRepo(githubDeploy);
+            PanelContainer panelContainer = containerService.initiateDeployment(githubDeploy); // New method
             Map<String, String> response = new HashMap<>();
             response.put("containerId", panelContainer.getId());
-            response.put("message", "GitHub repo deployed successfully. Access at https://" + githubDeploy.getDomain());
+            response.put("message", "Deployment initiated. Streaming logs via WebSocket.");
             log.info("Deploy response: {}", response);
+            // Start the build process asynchronously
+            CompletableFuture.runAsync(() -> {
+                try {
+                    containerService.completeDeployment(panelContainer);
+                } catch (Exception e) {
+                    log.error("Async deployment failed for containerId {}: {}", panelContainer.getId(), e.getMessage(), e);
+                }
+            });
             return response;
         } catch (Exception e) {
-            log.error("GitHub deployment failed", e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Deployment failed: " + e.getMessage());
+            log.error("Deployment initiation failed: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Deployment initiation failed: " + e.getMessage(), e);
         }
     }
 

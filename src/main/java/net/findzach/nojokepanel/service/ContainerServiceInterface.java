@@ -18,4 +18,5 @@ public interface ContainerServiceInterface {
     PanelContainer restartContainer(String id) throws Exception;
     void removeContainer(String id) throws Exception;
     void streamBuildLogs(PanelContainer panelContainer);
+    PanelContainer initiateDeployment(GitHubDeploy githubDeploy);
 }
