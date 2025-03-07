@@ -6,43 +6,27 @@ import org.springframework.web.socket.WebSocketSession;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * @author Zach Smith
- * @since 2/27/2025
- */
 @Data
 public class PanelContainer {
     private String id;
     private String name;
-    private String image;
+    private String imageName;
     private String domain;
     private int internalPort;
     private String status;
-    private List<String> logs;
     private WebSocketSession webSocketSession;
+    private List<String> logs = new ArrayList<>();
 
-    public PanelContainer(String id, String name, String image, String domain, int internalPort) {
+    public PanelContainer(String id, String name, String imageName, String domain, int internalPort) {
         this.id = id;
         this.name = name;
-        this.image = image;
+        this.imageName = imageName;
         this.domain = domain;
         this.internalPort = internalPort;
-        this.status = "BUILDING";
-        this.logs = new ArrayList<>();
+        this.status = "CREATING";
     }
 
-    public PanelContainer() {
-        this.logs = new ArrayList<>();
-        this.status = "UNKNOWN";
-    }
-
-    public void addLog(String logEntry) {
-        if (logEntry != null) {
-            logs.add(logEntry);
-        }
-    }
-
-    public void setWebSocketSession(WebSocketSession session) {
-        this.webSocketSession = session;
+    public void addLog(String log) {
+        logs.add(log);
     }
 }

@@ -1,8 +1,15 @@
 package net.findzach.nojokepanel.model;
 
-/**
- * @author Zach Smith
- * @since 3/6/2025
- */
+import lombok.Getter;
+import lombok.Setter;
+
+@Setter
+@Getter
 public class GitHubDeploy {
+    // Getters and setters
+    private String repoUrl;
+    private String githubToken;
+    private String domain;
+    private int internalPort;
+
 }

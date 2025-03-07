@@ -1,6 +1,7 @@
 package net.findzach.nojokepanel.config;
 
-import net.findzach.nojokepanel.controller.DockerController;
+import net.findzach.nojokepanel.handler.BuildLogWebSocketHandler;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
@@ -14,14 +15,11 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
 
-    private final DockerController dockerController;
-
-    public WebSocketConfig(DockerController dockerController) {
-        this.dockerController = dockerController;
-    }
+    @Autowired
+    private BuildLogWebSocketHandler buildLogWebSocketHandler;
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(dockerController, "/websocket").setAllowedOrigins("*");
+        registry.addHandler(buildLogWebSocketHandler, "/build-logs").setAllowedOrigins("*");
     }
 }
