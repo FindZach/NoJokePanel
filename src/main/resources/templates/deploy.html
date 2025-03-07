@@ -145,6 +145,7 @@
     const form = document.querySelector('form');
     const formData = new FormData(form);
     const buildLogs = document.getElementById('buildLogs');
+    buildLogs.innerHTML = '<div>Submitting deployment request...</div>';
 
     console.log('Submitting form via fetch');
     fetch('/deploy', {
@@ -152,9 +153,9 @@
       body: formData
     })
             .then(response => {
-              console.log('Fetch response received:', response);
+              console.log('Fetch response status:', response.status);
               if (!response.ok) {
-                throw new Error('Server error: ' + response.statusText);
+                throw new Error('Server error: ' + response.statusText + ' (' + response.status + ')');
               }
               return response.json();
             })
@@ -166,11 +167,13 @@
               }
               buildLogs.innerHTML += '<div>Starting deployment for container: ' + containerId + '</div>';
 
-              const ws = new WebSocket('wss://' + window.location.host + '/build-logs?containerId=' + encodeURIComponent(containerId));
-              console.log('WebSocket connection initiated for containerId:', containerId);
+              const wsUrl = 'wss://' + window.location.host + '/build-logs?containerId=' + encodeURIComponent(containerId);
+              console.log('Attempting WebSocket connection to:', wsUrl);
+              const ws = new WebSocket(wsUrl);
 
               ws.onopen = function() {
                 console.log('WebSocket connection opened for container ' + containerId);
+                buildLogs.innerHTML += '<div>WebSocket connected, starting build...</div>';
                 ws.send('startBuild:' + containerId);
               };
 
@@ -184,12 +187,12 @@
 
               ws.onerror = function(error) {
                 console.error('WebSocket error:', error);
-                buildLogs.innerHTML += '<div style="color: red;">WebSocket error occurred: ' + error.message + '</div>';
+                buildLogs.innerHTML += '<div style="color: red;">WebSocket error occurred: ' + (error.message || 'Unknown error') + '</div>';
               };
 
-              ws.onclose = function() {
-                console.log('WebSocket connection closed for container ' + containerId);
-                buildLogs.innerHTML += '<div>Build process ended.</div>';
+              ws.onclose = function(event) {
+                console.log('WebSocket connection closed for container ' + containerId + ':', event.code, event.reason);
+                buildLogs.innerHTML += '<div>Build process ended. WebSocket closed: ' + (event.reason || 'No reason provided') + '</div>';
               };
             })
             .catch(error => {

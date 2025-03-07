@@ -39,13 +39,16 @@ public class DockerController {
     }
 
     @PostMapping("/deploy")
-    @ResponseBody // Return JSON instead of a template
+    @ResponseBody
     public Map<String, String> deployGitHubRepo(@ModelAttribute GitHubDeploy githubDeploy) {
         try {
+            log.info("Received deploy request: repoUrl={}, domain={}, internalPort={}",
+                    githubDeploy.getRepoUrl(), githubDeploy.getDomain(), githubDeploy.getInternalPort());
             PanelContainer panelContainer = containerService.deployGitHubRepo(githubDeploy);
             Map<String, String> response = new HashMap<>();
             response.put("containerId", panelContainer.getId());
             response.put("message", "GitHub repo deployed successfully. Access at https://" + githubDeploy.getDomain());
+            log.info("Deploy response: {}", response);
             return response;
         } catch (Exception e) {
             log.error("GitHub deployment failed", e);
